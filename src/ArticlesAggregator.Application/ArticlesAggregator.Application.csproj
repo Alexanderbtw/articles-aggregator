@@ -1,0 +1,10 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="MediatR"/>
+    <PackageReference Include="Telegram.Bot"/>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\ArticlesAggregator.Infrastructure.Abstractions\ArticlesAggregator.Infrastructure.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

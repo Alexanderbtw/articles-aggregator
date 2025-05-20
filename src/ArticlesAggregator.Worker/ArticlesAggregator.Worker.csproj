@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+  <PropertyGroup>
+    <UserSecretsId>dotnet-ArticlesAggregator.Worker-3714ac33-f618-47a6-bdac-421f65e0caf2</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MediatR"/>
+    <PackageReference Include="Microsoft.Extensions.Hosting"/>
+    <PackageReference Include="Telegram.Bot"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ArticlesAggregator.Application\ArticlesAggregator.Application.csproj"/>
+  </ItemGroup>
+</Project>

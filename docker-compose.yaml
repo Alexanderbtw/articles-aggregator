@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  articles-aggregator:
+    build:
+      context: .
+      dockerfile: src/ArticlesAggregator.Worker/Dockerfile
+    container_name: articles-aggregator
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/Articles
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+  postgres:
+    image: postgres:16
+    container_name: articles-aggregator-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: Articles
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
