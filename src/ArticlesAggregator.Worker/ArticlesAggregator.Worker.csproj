@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ArticlesAggregator.Application\ArticlesAggregator.Application.csproj"/>
+    <ProjectReference Include="..\ArticlesAggregator.ExternalServices.Parser\ArticlesAggregator.ExternalServices.Parser.csproj" />
     <ProjectReference Include="..\ArticlesAggregator.Infrastructure\ArticlesAggregator.Infrastructure.csproj" />
   </ItemGroup>
 </Project>

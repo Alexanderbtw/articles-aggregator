@@ -1,5 +1,6 @@
+using ArticlesAggregator.Application;
+using ArticlesAggregator.ExternalServices.WikiApi;
 using ArticlesAggregator.Infrastructure;
-using ArticlesAggregator.Infrastructure.Abstractions;
 using ArticlesAggregator.Worker.Options;
 using ArticlesAggregator.Worker.Routers;
 using ArticlesAggregator.Worker.Routers.Abstractions;
@@ -21,6 +22,8 @@ builder.Services.AddSingleton<ITelegramBotClient>(sp =>
 });
 
 InfrastructureRegistrar.Congigure(builder.Services);
+ApplicationRegistrar.Configure(builder.Services);
+ExternalParserRegistrar.Configure(builder.Services, builder.Configuration);
 
 builder.Services.AddScoped<IUpdateRouter, UpdateRouter>();
 builder.Services.AddHostedService<UpdateWorker>();

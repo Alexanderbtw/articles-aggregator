@@ -1,6 +1,5 @@
 using System.Text;
 
-using ArticlesAggregator.Application;
 using ArticlesAggregator.Application.Handlers;
 using ArticlesAggregator.Domain.Entities;
 using ArticlesAggregator.Worker.Options;
@@ -265,7 +264,7 @@ internal sealed class UpdateRouter(
             [
                 InlineKeyboardButton.WithCallbackData(
                     title,
-                    $"/show {a.Id}") // Переделать на callback
+                    $"/show {a.Id}") // TODO: Переделать на callback
             ]);
         }
 

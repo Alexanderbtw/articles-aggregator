@@ -5,6 +5,7 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "common", "common", "{7B1833FB-BBE5-40BC-A4CE-3A4FB44796B0}"
 ProjectSection(SolutionItems) = preProject
+    .env = .env
 	.editorconfig = .editorconfig
 	.gitignore = .gitignore
 	docker-compose.yaml = docker-compose.yaml
