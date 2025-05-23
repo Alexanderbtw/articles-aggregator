@@ -20,9 +20,17 @@ public sealed class UpdateWorker(
 
     private async Task HandleUpdateAsync(ITelegramBotClient client, Update u, CancellationToken ct)
     {
-        using IServiceScope scope = sp.CreateScope();
-        var handler = scope.ServiceProvider.GetRequiredService<IUpdateRouter>();
-        await handler.RouteAsync(u, ct);
+        try
+        {
+            using IServiceScope scope = sp.CreateScope();
+            var handler = scope.ServiceProvider.GetRequiredService<IUpdateRouter>();
+            await handler.RouteAsync(u, ct);
+        }
+        catch (Exception e)
+        {
+            log.LogError(e, "Error processing update {@Update}", u);
+            // TODO: Write admins
+        }
     }
 
     private Task HandleErrorAsync(ITelegramBotClient client, Exception ex, CancellationToken cancellationToken)

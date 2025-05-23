@@ -4,7 +4,9 @@
     <PackageReference Include="Telegram.Bot"/>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\ArticlesAggregator.Infrastructure.Abstractions\ArticlesAggregator.Infrastructure.Abstractions.csproj" />
+    <ProjectReference Include="..\ArticlesAggregator.Domain\ArticlesAggregator.Domain.csproj" />
+    <ProjectReference Include="..\ArticlesAggregator.ExternalServices\ArticlesAggregator.ExternalServices.csproj" />
+    <ProjectReference Include="..\ArticlesAggregator.Infrastructure.Abstractions\ArticlesAggregator.Infrastructure.Abstractions.csproj" />
   </ItemGroup>
 
 </Project>

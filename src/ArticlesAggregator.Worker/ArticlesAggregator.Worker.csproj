@@ -5,11 +5,13 @@
 
   <ItemGroup>
     <PackageReference Include="MediatR"/>
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" />
     <PackageReference Include="Microsoft.Extensions.Hosting"/>
     <PackageReference Include="Telegram.Bot"/>
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\ArticlesAggregator.Application\ArticlesAggregator.Application.csproj"/>
+    <ProjectReference Include="..\ArticlesAggregator.Infrastructure\ArticlesAggregator.Infrastructure.csproj" />
   </ItemGroup>
 </Project>

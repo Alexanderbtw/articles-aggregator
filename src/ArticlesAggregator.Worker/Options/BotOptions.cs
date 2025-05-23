@@ -1,8 +1,8 @@
 namespace ArticlesAggregator.Worker.Options;
 
-public sealed record BotOptions
+internal sealed class BotOptions
 {
-    public string Token { get; init; } = null!;
+    public required string Token { get; init; } = null!;
 
-    public long[] Admins { get; init; } = [];
+    public required long[] Admins { get; init; } = [];
 }

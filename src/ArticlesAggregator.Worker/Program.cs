@@ -1,3 +1,5 @@
+using ArticlesAggregator.Infrastructure;
+using ArticlesAggregator.Infrastructure.Abstractions;
 using ArticlesAggregator.Worker.Options;
 using ArticlesAggregator.Worker.Routers;
 using ArticlesAggregator.Worker.Routers.Abstractions;
@@ -18,11 +20,10 @@ builder.Services.AddSingleton<ITelegramBotClient>(sp =>
     return new TelegramBotClient(opt.Token);
 });
 
-// 3) Регистрируем DAL/HTTP-клиенты
-builder.Services.AddSingleton<IDbConnectionFactory, SqlConnectionFactory>();
-builder.Services.AddHttpClient<IWeatherApi, WeatherApi>();
+InfrastructureRegistrar.Congigure(builder.Services);
 
 builder.Services.AddScoped<IUpdateRouter, UpdateRouter>();
 builder.Services.AddHostedService<UpdateWorker>();
+builder.Services.AddMemoryCache();
 
 await builder.Build().RunAsync();

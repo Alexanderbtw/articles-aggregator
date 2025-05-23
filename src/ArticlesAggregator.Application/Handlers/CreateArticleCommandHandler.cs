@@ -1,19 +1,20 @@
-using ArticlesAggregator.Infrastructure.Abstractions.Entities;
+using ArticlesAggregator.Domain.Entities;
+using ArticlesAggregator.ExternalServices.Parser;
 using ArticlesAggregator.Infrastructure.Abstractions.Repositories;
 
 using MediatR;
 
-namespace ArticlesAggregator.Application;
+namespace ArticlesAggregator.Application.Handlers;
 
-public sealed record CreateArticleCommand(
-    string UrlString) : IRequest<CreateArticleCommandResponse>;
+public sealed record CreateArticleCommand(string UrlString) : IRequest<CreateArticleCommandResponse>;
 
 public sealed record CreateArticleCommandResponse(
     List<string> Errors,
     ArticleEntity? Article);
 
-public class CreateArticleCommandHandler(
-    IArticleRepository repo)
+internal sealed class CreateArticleCommandHandler(
+    IArticleRepository repo,
+    IExternalParserClient externalParser)
     : IRequestHandler<CreateArticleCommand, CreateArticleCommandResponse>
 {
     public async Task<CreateArticleCommandResponse> Handle(CreateArticleCommand req, CancellationToken ct)
@@ -25,9 +26,11 @@ public class CreateArticleCommandHandler(
             return new CreateArticleCommandResponse(errors, null);
         }
 
-        ArticleEntity article = externalService.Get(); // TODO: Get db model from external service
+        var uri = new Uri(req.UrlString);
+        ArticleEntity article = await externalParser.GetArticle(uri, ct);
 
         var response = new CreateArticleCommandResponse(errors, null);
+
         try
         {
             Guid newId = await repo.AddAsync(article, ct);

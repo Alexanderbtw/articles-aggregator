@@ -1,7 +1,7 @@
 using System.Data;
 
+using ArticlesAggregator.Domain.Entities;
 using ArticlesAggregator.Infrastructure.Abstractions;
-using ArticlesAggregator.Infrastructure.Abstractions.Entities;
 using ArticlesAggregator.Infrastructure.Abstractions.Repositories;
 
 using Dapper;
@@ -31,7 +31,7 @@ internal sealed class ArticleRepository(IDbConnectionFactory dbConnectionFactory
             entity.Id,
             entity.Url,
             entity.Title,
-            entity.Description,
+            Description = entity.Content,
         });
 
         return entity.Id;
@@ -55,7 +55,7 @@ internal sealed class ArticleRepository(IDbConnectionFactory dbConnectionFactory
             {
                 entity.Url,
                 entity.Title,
-                entity.Description,
+                Description = entity.Content,
                 entity.Id
             });
 

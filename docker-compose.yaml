@@ -1,28 +1,46 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: articles-aggregator-user
+      POSTGRES_PASSWORD: supersecretpass
+      POSTGRES_DB: articles-aggregator-db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U articles-aggregator-user"]
+      interval: 5s
+      retries: 10
+
+  db-migrate:
+    image: flyway/flyway:10
+    command: -baselineOnMigrate=true migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./migrations:/flyway/sql
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/articles-aggregator-db
+      FLYWAY_USER: articles-aggregator-user
+      FLYWAY_PASSWORD: supersecretpass
+
   articles-aggregator:
     build:
       context: .
-      dockerfile: src/ArticlesAggregator.Worker/Dockerfile
-    container_name: articles-aggregator
-    environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/Articles
-    ports:
-      - "8000:8000"
+      dockerfile: Dockerfile
     depends_on:
-      - postgres
-  postgres:
-    image: postgres:16
-    container_name: articles-aggregator-db
+      db-migrate:
+        condition: service_completed_successfully
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: Articles
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+      ConnectionStrings__MainDb: Host=postgres;Port=5432;Database=articles-aggregator-db;Username=articles-aggregator-user;Password=supersecretpass;Trust Server Certificate=true
 
+  external-parser:
+    image: konbigog/webapi
+    ports:
+      - "8080:8080"
+    command: go run cmd/webapi/main.go
 volumes:
-  postgres_data:
+  pgdata:

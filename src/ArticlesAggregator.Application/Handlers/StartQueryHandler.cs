@@ -2,11 +2,11 @@ using System.Text;
 
 using MediatR;
 
-namespace ArticlesAggregator.Application;
+namespace ArticlesAggregator.Application.Handlers;
 
 public sealed record StartQuery(bool IsAdmin) : IRequest<string>;
 
-public class StartQueryHandler : IRequestHandler<StartQuery, string>
+internal sealed class StartQueryHandler : IRequestHandler<StartQuery, string>
 {
     public Task<string> Handle(StartQuery req, CancellationToken ct)
     {

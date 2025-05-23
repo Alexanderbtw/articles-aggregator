@@ -127,6 +127,9 @@ resharper_web_config_wrong_module_highlighting = warning
 resharper_parameter_type_can_be_enumerable_global_highlighting = none
 resharper_parameter_type_can_be_enumerable_local_highlighting = none
 
+#
+resharper_indent_break_from_case = false
+
 [{*.har,*.inputactions,*.jsb2,*.jsb3,*.json,.babelrc,.eslintrc,.stylelintrc,bowerrc,jest.config}]
 indent_size = 2
 

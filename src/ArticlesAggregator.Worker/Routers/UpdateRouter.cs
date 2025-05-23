@@ -1,79 +1,280 @@
 using System.Text;
+
 using ArticlesAggregator.Application;
-using ArticlesAggregator.Infrastructure.Abstractions.Entities;
+using ArticlesAggregator.Application.Handlers;
+using ArticlesAggregator.Domain.Entities;
 using ArticlesAggregator.Worker.Options;
 using ArticlesAggregator.Worker.Routers.Abstractions;
 
 using MediatR;
 
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using Telegram.Bot.Types.Enums;
+using Telegram.Bot.Types.ReplyMarkups;
 
 namespace ArticlesAggregator.Worker.Routers;
 
-public sealed class UpdateRouter(
+internal sealed class UpdateRouter(
     ITelegramBotClient bot,
     IMediator mediator,
     ILogger<UpdateRouter> logger,
-    IOptionsSnapshot<BotOptions> options) : IUpdateRouter
+    IOptionsSnapshot<BotOptions> options,
+    IMemoryCache cache)
+    : IUpdateRouter
 {
     public async Task RouteAsync(Update update, CancellationToken ct)
     {
-        if (update.Message?.Text is not { } reqTitle || update.Message?.From is not { } user)
+        switch (update.Type)
         {
-            logger.LogInformation("Empty message or user");
-            return;
+            case UpdateType.Message:
+                await HandleMessageAsync(update.Message!, ct);
+
+            break;
+            case UpdateType.CallbackQuery:
+                await HandleCallbackAsync(update.CallbackQuery!, ct);
+
+            break;
+            default:
+                logger.LogInformation("Unsupported update type: {type}", update.Type);
+
+            break;
         }
+    }
 
-        long chatId = update.Message.Chat.Id;
-        bool isAdmin = options.Value.Admins.Contains(user.Id);
+    #region Command routing
 
-        string[] parts = reqTitle.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-        string cmd = parts[0].ToLowerInvariant();
-        string? arg = parts.Length > 1 ? parts[1] : null;
-
+    private async Task HandleCommandAsync(
+        string cmd,
+        string? arg,
+        long chatId,
+        long userId,
+        bool isAdmin,
+        CancellationToken ct)
+    {
         switch (cmd)
         {
             case "/start":
-                string welcome = await mediator.Send(new StartQuery(isAdmin), ct);
-                await bot.SendMessage(
-                    chatId: chatId,
-                    text: welcome,
-                    cancellationToken: ct);
-                break;
+                await HandleStartAsync(chatId, isAdmin, ct);
 
+            break;
             case "/link" when isAdmin:
-                CreateArticleCommandResponse creationResult = await mediator.Send(new CreateArticleCommand(UrlString: arg!), ct);
-                if (creationResult.Errors.Count > 0)
-                {
-                    var sb = new StringBuilder();
-                    foreach (string error in creationResult.Errors)
-                    {
-                        sb.AppendLine(error);
-                    }
+                await HandleLinkAsync(chatId, arg, ct);
 
-                    await bot.SendMessage(chatId, sb.ToString(), cancellationToken: ct);
-                    break;
-                }
-                var text = PrepareArticle(creationResult.Article!);
-                await bot.SendMessage(chatId, text, cancellationToken: ct); // TODO: кнопка "Удалить" и "Редактировать" для админов
+            break;
+            case "/show":
+                await HandleShowAsync(chatId, arg, isAdmin, ct);
 
-                break;
-
-            case "/delete" when isAdmin:
-                RemoveArticleCommandResponse res = await mediator.Send(new RemoveArticleCommand(Guid.Parse(arg!)), ct);
-                string msg = res.Success ? "✅ Статья удалена." : "❗️ Статья не найдена.";
-                await bot.SendMessage(chatId, msg, cancellationToken: ct);
-                break;
-
+            break;
             default:
-                // TODO: Когда возвращаем список, то обрабатываем его как кучку кнопок, а по кнопке пересылаем запрос и если 1 статья, то показываем
-                IEnumerable<ArticleEntity> results = await mediator.Send(new SearchArticleQuery(reqTitle.Trim()), ct);
-                var content = PrepareMessage(results);
-                await bot.SendMessage(chatId, content, cancellationToken: ct);
-                break;
+                await HandleSearchAsync(chatId, cmd + (arg is null ? string.Empty : $" {arg}"), ct);
+
+            break;
         }
     }
+
+    #endregion
+
+    #region State helpers
+
+    private sealed record PendingEdit(Guid ArticleId, string Field);
+
+    #endregion
+
+    #region UI-helpers
+
+    private InlineKeyboardMarkup BuildEditMenu(Guid articleId) => new InlineKeyboardMarkup(
+    [
+        [
+            InlineKeyboardButton.WithCallbackData("✏️ Заголовок", $"edit:Title:{articleId}"),
+            InlineKeyboardButton.WithCallbackData("✏️ Описание", $"edit:Description:{articleId}")
+        ],
+        [InlineKeyboardButton.WithCallbackData("✅ Сохранить", $"save:{articleId}")] // TODO: del
+    ]);
+
+    private string PrepareArticle(ArticleEntity article)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"📰 <b>{article.Title}</b>");
+        sb.AppendLine($"<i>{article.Content}</i>");
+        sb.AppendLine($"\n<code>{article.Url}</code>");
+
+        return sb.ToString();
+    }
+
+    private static string GetEditKey(long chatId) => $"edit:{chatId}";
+
+    #endregion
+
+    #region Update-type handlers (Message/Callback)
+
+    private async Task HandleMessageAsync(Message message, CancellationToken ct)
+    {
+        if (message.Text is not { } text || message.From is not { } user)
+        {
+            throw new Exception("Message without text or user");
+        }
+
+        long chatId = message.Chat.Id;
+        bool isAdmin = options.Value.Admins.Contains(user.Id);
+
+        if (isAdmin && cache.TryGetValue(GetEditKey(chatId), out PendingEdit? pending) && pending != null)
+        {
+            await mediator.Send(new EditArticleFieldCommand(pending.ArticleId, pending.Field, text), ct);
+            GetArticleQueryResponse resp = await mediator.Send(new GetArticleQuery(pending.ArticleId), ct);
+
+            await bot.SendMessage(
+                chatId,
+                PrepareArticle(resp.Article),
+                replyMarkup: BuildEditMenu(resp.Article.Id),
+                cancellationToken: ct);
+
+            cache.Remove(GetEditKey(chatId));
+
+            return;
+        }
+
+        string[] parts = text.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+        string cmd = parts[0].ToLowerInvariant();
+        string? arg = parts.Length > 1 ? parts[1] : null;
+
+        await HandleCommandAsync(cmd, arg, chatId, user.Id, isAdmin, ct);
+    }
+
+    private async Task HandleCallbackAsync(CallbackQuery callback, CancellationToken ct)
+    {
+        if (callback.Message is not { } text || callback.From is not { } user)
+        {
+            throw new Exception("Callback without message or user");
+        }
+
+        bool isAdmin = options.Value.Admins.Contains(user.Id);
+        long chatId = callback.Message.Chat.Id;
+        int messageId = callback.Message.MessageId;
+
+        string[] chunks = callback.Data!.Split(':');
+        string cmd = chunks[0];
+        Guid articleId = Guid.Parse(chunks[1]);
+
+        switch (cmd)
+        {
+            case "del" when isAdmin:
+                await HandleDeleteAsync(chatId, articleId, messageId, ct);
+
+            break;
+            case "edit" when isAdmin:
+                string field = chunks[2];
+
+                cache.Set(
+                    GetEditKey(chatId),
+                    new PendingEdit(articleId, field),
+                    TimeSpan.FromMinutes(10));
+
+                await bot.EditMessageText(
+                    chatId,
+                    messageId,
+                    $"Введите новое значение для <b>{field}</b>:",
+                    ParseMode.Html,
+                    cancellationToken: ct);
+
+            break;
+        }
+
+        await bot.AnswerCallbackQuery(callback.Id, cancellationToken: ct);
+    }
+
+    #endregion
+
+    #region Command handlers
+
+    private async Task HandleStartAsync(long chatId, bool isAdmin, CancellationToken ct)
+    {
+        string welcome = await mediator.Send(new StartQuery(isAdmin), ct);
+        await bot.SendMessage(chatId, welcome, cancellationToken: ct);
+    }
+
+    private async Task HandleLinkAsync(long chatId, string? urlArg, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(urlArg))
+        {
+            await bot.SendMessage(chatId, "❗️ Укажите URL после /link", cancellationToken: ct);
+
+            return;
+        }
+
+        CreateArticleCommandResponse creation = await mediator.Send(new CreateArticleCommand(urlArg), ct);
+
+        if (creation.Errors.Count > 0)
+        {
+            string errors = string.Join(Environment.NewLine, creation.Errors);
+            await bot.SendMessage(chatId, errors, cancellationToken: ct);
+
+            return;
+        }
+
+        string preview = PrepareArticle(creation.Article!);
+        InlineKeyboardMarkup kb = BuildEditMenu(creation.Article!.Id);
+        await bot.SendMessage(chatId, preview, replyMarkup: kb, cancellationToken: ct);
+    }
+
+    private async Task HandleDeleteAsync(long chatId, Guid articleId, int messageId, CancellationToken ct)
+    {
+        RemoveArticleCommandResponse delRes =
+            await mediator.Send(new RemoveArticleCommand(articleId), ct);
+
+        string delMsg = delRes.Success ? "✅ Статья удалена." : "❗️ Не найдена.";
+        await bot.EditMessageText(chatId, messageId, delMsg, cancellationToken: ct);
+    }
+
+    private async Task HandleShowAsync(long chatId, string? idArg, bool isAdmin, CancellationToken ct)
+    {
+        if (!Guid.TryParse(idArg, out Guid id))
+        {
+            await bot.SendMessage(chatId, "❗️ Неверный ID статьи.", cancellationToken: ct);
+
+            return;
+        }
+
+        GetArticleQueryResponse resp = await mediator.Send(new GetArticleQuery(id), ct);
+        InlineKeyboardMarkup? kb = isAdmin ? BuildEditMenu(resp.Article.Id) : null;
+        string preview = PrepareArticle(resp.Article);
+        await bot.SendMessage(chatId, preview, replyMarkup: kb, cancellationToken: ct);
+    }
+
+    private async Task HandleSearchAsync(long chatId, string query, CancellationToken ct)
+    {
+        SearchArticleQueryResponse results = await mediator.Send(new SearchArticleQuery(query.Trim()), ct);
+
+        if (results.Articles.Count == 0)
+        {
+            await bot.SendMessage(chatId, "Ничего не нашёл 😔", cancellationToken: ct);
+
+            return;
+        }
+
+        var kb = new List<InlineKeyboardButton[]>();
+
+        foreach (ArticleEntity a in results.Articles.Take(20)) // TODO: Pagination
+        {
+            string title = a.Title.Length > 50 ? a.Title[..47] + "…" : a.Title;
+
+            kb.Add(
+            [
+                InlineKeyboardButton.WithCallbackData(
+                    title,
+                    $"/show {a.Id}") // Переделать на callback
+            ]);
+        }
+
+        await bot.SendMessage(
+            chatId,
+            "Нашёл следующие статьи:",
+            replyMarkup: new InlineKeyboardMarkup(kb),
+            cancellationToken: ct);
+    }
+
+    #endregion
 }
