@@ -64,10 +64,6 @@ internal sealed class UpdateRouter(
                 await HandleLinkAsync(chatId, arg, ct);
 
             break;
-            case "/show":
-                await HandleShowAsync(chatId, arg, isAdmin, ct);
-
-            break;
             default:
                 await HandleSearchAsync(chatId, cmd + (arg is null ? string.Empty : $" {arg}"), ct);
 
@@ -91,7 +87,7 @@ internal sealed class UpdateRouter(
             InlineKeyboardButton.WithCallbackData("✏️ Заголовок", $"edit:Title:{articleId}"),
             InlineKeyboardButton.WithCallbackData("✏️ Описание", $"edit:Description:{articleId}")
         ],
-        [InlineKeyboardButton.WithCallbackData("✅ Сохранить", $"save:{articleId}")] // TODO: del
+        [InlineKeyboardButton.WithCallbackData("🗑️ Удалить", $"del:{articleId}")]
     ]);
 
     private string PrepareArticle(ArticleEntity article)
@@ -165,19 +161,11 @@ internal sealed class UpdateRouter(
 
             break;
             case "edit" when isAdmin:
-                string field = chunks[2];
+                await HandleEditAsync(chatId, articleId, messageId, chunks[2], ct);
 
-                cache.Set(
-                    GetEditKey(chatId),
-                    new PendingEdit(articleId, field),
-                    TimeSpan.FromMinutes(10));
-
-                await bot.EditMessageText(
-                    chatId,
-                    messageId,
-                    $"Введите новое значение для <b>{field}</b>:",
-                    ParseMode.Html,
-                    cancellationToken: ct);
+            break;
+            case "/show":
+                await HandleShowAsync(chatId, articleId, isAdmin, ct);
 
             break;
         }
@@ -188,6 +176,21 @@ internal sealed class UpdateRouter(
     #endregion
 
     #region Command handlers
+
+    private async Task HandleEditAsync(long chatId, Guid articleId, int messageId, string field, CancellationToken ct)
+    {
+        cache.Set(
+            GetEditKey(chatId),
+            new PendingEdit(articleId, field),
+            TimeSpan.FromMinutes(10));
+
+        await bot.EditMessageText(
+            chatId,
+            messageId,
+            $"Введите новое значение для <b>{field}</b>:",
+            ParseMode.Html,
+            cancellationToken: ct);
+    }
 
     private async Task HandleStartAsync(long chatId, bool isAdmin, CancellationToken ct)
     {
@@ -228,16 +231,9 @@ internal sealed class UpdateRouter(
         await bot.EditMessageText(chatId, messageId, delMsg, cancellationToken: ct);
     }
 
-    private async Task HandleShowAsync(long chatId, string? idArg, bool isAdmin, CancellationToken ct)
+    private async Task HandleShowAsync(long chatId, Guid articleId, bool isAdmin, CancellationToken ct)
     {
-        if (!Guid.TryParse(idArg, out Guid id))
-        {
-            await bot.SendMessage(chatId, "❗️ Неверный ID статьи.", cancellationToken: ct);
-
-            return;
-        }
-
-        GetArticleQueryResponse resp = await mediator.Send(new GetArticleQuery(id), ct);
+        GetArticleQueryResponse resp = await mediator.Send(new GetArticleQuery(articleId), ct);
         InlineKeyboardMarkup? kb = isAdmin ? BuildEditMenu(resp.Article.Id) : null;
         string preview = PrepareArticle(resp.Article);
         await bot.SendMessage(chatId, preview, replyMarkup: kb, cancellationToken: ct);
@@ -264,7 +260,7 @@ internal sealed class UpdateRouter(
             [
                 InlineKeyboardButton.WithCallbackData(
                     title,
-                    $"/show {a.Id}") // TODO: Переделать на callback
+                    $"show:{a.Id}")
             ]);
         }
 

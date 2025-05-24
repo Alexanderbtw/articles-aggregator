@@ -15,24 +15,27 @@ internal sealed class ArticleRepository(IDbConnectionFactory dbConnectionFactory
         const string sql = "DELETE FROM Articles WHERE Id = @Id";
         using IDbConnection conn = await dbConnectionFactory.OpenAsync(ct);
         int affected = await conn.ExecuteAsync(sql, new { Id = id });
+
         return affected > 0;
     }
 
     public async Task<Guid> AddAsync(ArticleEntity entity, CancellationToken ct = default)
     {
         const string sql = @"
-            INSERT INTO Articles (Id, Url, Title, Description, AddedBy, CreatedAt)
-            VALUES (@Id, @Url, @Title, @Description, @AddedBy, @CreatedAt);
+            INSERT INTO Articles (Id, Title, Content)
+            VALUES (@Id, @Title, @Content);
         ";
 
         using IDbConnection conn = await dbConnectionFactory.OpenAsync(ct);
-        await conn.ExecuteAsync(sql, new
-        {
-            entity.Id,
-            entity.Url,
-            entity.Title,
-            Description = entity.Content,
-        });
+
+        await conn.ExecuteAsync(
+            sql,
+            new
+            {
+                entity.Id,
+                entity.Title,
+                entity.Content
+            });
 
         return entity.Id;
     }
@@ -41,9 +44,8 @@ internal sealed class ArticleRepository(IDbConnectionFactory dbConnectionFactory
     {
         const string sql = @"
                 UPDATE Articles
-                   SET Url         = @Url,
-                       Title       = @Title,
-                       Description = @Description
+                   SET Title   = @Title,
+                       Content = @Content
                  WHERE Id = @Id;
             ";
 
@@ -53,9 +55,8 @@ internal sealed class ArticleRepository(IDbConnectionFactory dbConnectionFactory
             sql,
             new
             {
-                entity.Url,
                 entity.Title,
-                Description = entity.Content,
+                entity.Content,
                 entity.Id
             });
 
@@ -65,26 +66,41 @@ internal sealed class ArticleRepository(IDbConnectionFactory dbConnectionFactory
     public async Task<ArticleEntity?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         const string sql = @"
-                SELECT Id, Url, Title, Description, AddedBy, CreatedAt
+                SELECT Id, Title, Content
                 FROM Articles
                 WHERE Id = @Id
             ";
+
         using IDbConnection conn = await dbConnectionFactory.OpenAsync(ct);
+
         return await conn.QuerySingleOrDefaultAsync<ArticleEntity>(sql, new { Id = id });
     }
 
     public async Task<IEnumerable<ArticleEntity>> SearchByTitleAsync(string title, CancellationToken ct = default)
     {
-        const string sql = @"
-                SELECT Id, Url, Title, Description, AddedBy, CreatedAt
-                FROM Articles
-                WHERE Title LIKE @Pattern
-                ORDER BY CreatedAt DESC
-            ";
+        string[] terms = title
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
-        var pattern = $"%{title}%";
+        // Пример с AND: все слова должны присутствовать
+        IEnumerable<string> whereClauses = terms
+            .Select((_, i) => $"Title ILIKE @pattern{i}");
+
+        var sql = $@"
+            SELECT Id, Title, Content
+            FROM Articles
+            WHERE {string.Join(" AND ", whereClauses)}
+            ORDER BY Id DESC
+        ";
+
+        var dp = new DynamicParameters();
+
+        for (var i = 0; i < terms.Length; i++)
+        {
+            dp.Add($"pattern{i}", $"%{terms[i]}%");
+        }
+
         using IDbConnection conn = await dbConnectionFactory.OpenAsync(ct);
 
-        return await conn.QueryAsync<ArticleEntity>(sql, new { Pattern = pattern });
+        return await conn.QueryAsync<ArticleEntity>(sql, dp);
     }
 }

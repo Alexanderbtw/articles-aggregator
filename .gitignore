@@ -248,3 +248,4 @@ FodyWeavers.xsd
 *.msm
 *.msp
 *.env
+appsettings.Development.json

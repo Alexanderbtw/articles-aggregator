@@ -21,6 +21,10 @@ builder.Services.AddSingleton<ITelegramBotClient>(sp =>
     return new TelegramBotClient(opt.Token);
 });
 
+Console.WriteLine(Directory.GetCurrentDirectory());
+Console.WriteLine(builder.Configuration.GetConnectionString("articles-aggregator-db"));
+Console.WriteLine(builder.Configuration.GetSection("Bot").Value);
+
 InfrastructureRegistrar.Congigure(builder.Services);
 ApplicationRegistrar.Configure(builder.Services);
 ExternalParserRegistrar.Configure(builder.Services, builder.Configuration);

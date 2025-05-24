@@ -3,14 +3,16 @@ version: '3.8'
 services:
   postgres:
     image: postgres:16
+    ports:
+      - "5432:5432"
     environment:
-      POSTGRES_USER: ${USER}
-      POSTGRES_PASSWORD: ${PASSWORD}
+      POSTGRES_USER: ${PG_USER}
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
       POSTGRES_DB: ${DB}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U articles-aggregator-user"]
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER} -d ${DB}"]
       interval: 5s
       retries: 10
 
@@ -24,11 +26,13 @@ services:
       - ./migrations:/flyway/sql
     environment:
       FLYWAY_URL: jdbc:postgresql://postgres:5432/${DB}
-      FLYWAY_USER: ${USER}
-      FLYWAY_PASSWORD: ${PASSWORD}
+      FLYWAY_USER: ${PG_USER}
+      FLYWAY_PASSWORD: ${PG_PASSWORD}
 
   worker-bot:
-    build: ./src/ArticlesAggregator.Worker
+    build:
+      context: .
+      dockerfile: ./src/ArticlesAggregator.Worker/Dockerfile
     depends_on:
       db-migrate:
         condition: service_completed_successfully
