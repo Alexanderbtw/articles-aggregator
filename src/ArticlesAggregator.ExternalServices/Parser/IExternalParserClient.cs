@@ -1,8 +1,8 @@
-using ArticlesAggregator.Domain.Entities;
+using ArticlesAggregator.Domain.Models;
 
 namespace ArticlesAggregator.ExternalServices.Parser;
 
 public interface IExternalParserClient
 {
-    public Task<ArticleEntity> GetArticle(Uri link, CancellationToken ct);
+    public Task<ArticleModel> GetArticle(Uri link, CancellationToken ct);
 }

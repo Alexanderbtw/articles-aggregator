@@ -1,4 +1,6 @@
-using ArticlesAggregator.Domain.Entities;
+using ArticlesAggregator.Application.Handlers.Converters;
+using ArticlesAggregator.Domain.Models;
+using ArticlesAggregator.Infrastructure.Abstractions.Entities;
 using ArticlesAggregator.Infrastructure.Abstractions.Repositories;
 
 using MediatR;
@@ -7,7 +9,7 @@ namespace ArticlesAggregator.Application.Handlers;
 
 public sealed record GetArticleQuery(Guid Id) : IRequest<GetArticleQueryResponse>;
 
-public sealed record GetArticleQueryResponse(ArticleEntity Article);
+public sealed record GetArticleQueryResponse(ArticleModel Article);
 
 internal sealed class GetArticleQueryHandler(IArticleRepository repository)
     : IRequestHandler<GetArticleQuery, GetArticleQueryResponse>
@@ -21,6 +23,6 @@ internal sealed class GetArticleQueryHandler(IArticleRepository repository)
             throw new Exception("Article not found");
         }
 
-        return new GetArticleQueryResponse(article);
+        return new GetArticleQueryResponse(article.ToDomainModel());
     }
 }

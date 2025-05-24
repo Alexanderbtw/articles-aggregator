@@ -1,5 +1,2 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup>
-    <ProjectReference Include="..\ArticlesAggregator.Domain\ArticlesAggregator.Domain.csproj" />
-  </ItemGroup>
 </Project>

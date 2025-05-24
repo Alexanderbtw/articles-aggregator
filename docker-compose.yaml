@@ -40,6 +40,7 @@ services:
 
   external-parser:
     image: konbigog/webapi
+    platform: linux/amd64
     ports:
       - "8080:8080"
     command: go run cmd/webapi/main.go

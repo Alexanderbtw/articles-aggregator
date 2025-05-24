@@ -1,5 +1,7 @@
-using ArticlesAggregator.Domain.Entities;
+using ArticlesAggregator.Application.Handlers.Converters;
+using ArticlesAggregator.Domain.Models;
 using ArticlesAggregator.ExternalServices.Parser;
+using ArticlesAggregator.Infrastructure.Abstractions.Entities;
 using ArticlesAggregator.Infrastructure.Abstractions.Repositories;
 
 using MediatR;
@@ -10,7 +12,7 @@ public sealed record CreateArticleCommand(string UrlString) : IRequest<CreateArt
 
 public sealed record CreateArticleCommandResponse(
     List<string> Errors,
-    ArticleEntity? Article);
+    ArticleModel? Article);
 
 internal sealed class CreateArticleCommandHandler(
     IArticleRepository repo,
@@ -27,13 +29,14 @@ internal sealed class CreateArticleCommandHandler(
         }
 
         var uri = new Uri(req.UrlString);
-        ArticleEntity article = await externalParser.GetArticle(uri, ct);
+        ArticleModel article = await externalParser.GetArticle(uri, ct);
 
         var response = new CreateArticleCommandResponse(errors, null);
 
         try
         {
-            Guid newId = await repo.AddAsync(article, ct);
+            ArticleEntity articleEntity = article.ToEntity();
+            Guid newId = await repo.AddAsync(articleEntity, ct);
             response = response with { Article = article };
         }
         catch (Exception ex)

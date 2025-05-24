@@ -1,4 +1,6 @@
 using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json.Serialization;
 
 using ArticlesAggregator.ExternalServices.Parser.Contracts;
 using ArticlesAggregator.ExternalServices.Parser.Options;
@@ -7,25 +9,33 @@ using Microsoft.Extensions.Options;
 
 namespace ArticlesAggregator.ExternalServices.WikiApi;
 
-internal sealed class ExternalParserHttpClient : HttpClient
+internal sealed class ExternalParserHttpClient
 {
+    private readonly HttpClient _http;
+
     public ExternalParserHttpClient(
-        HttpMessageHandler handler,
-        IOptions<ExternalParserOptions> options) : base(handler, false) => BaseAddress = new Uri(options.Value.BaseUrl.TrimEnd('/'));
+        HttpClient http, // <- именно HttpClient!
+        IOptions<ExternalParserOptions> opt)
+    {
+        _http = http;
+        _http.BaseAddress = new Uri(opt.Value.BaseUrl.TrimEnd('/'));
+    }
 
     public async Task<ParsedArticleDto?> GetArticles(Uri link, CancellationToken ct = default)
     {
         using var req = new HttpRequestMessage(HttpMethod.Get, "/getArticles");
-        req.Content = new StringContent(link.ToString(), System.Text.Encoding.UTF8, "text/plain");
+        req.Content = new StringContent(link.ToString(), Encoding.UTF8, "text/plain");
 
-        using HttpResponseMessage resp = await SendAsync(req, ct);
+        using HttpResponseMessage resp = await _http.SendAsync(req, ct);
         resp.EnsureSuccessStatusCode();
 
-        var wrapper = await resp.Content.ReadFromJsonAsync<ResponseWrapper>(cancellationToken: ct);
+        var wrapper = await resp.Content
+            .ReadFromJsonAsync<ResponseWrapper>(ct);
+
         return wrapper?.Message;
     }
 
     private sealed record ResponseWrapper(
-        [property: System.Text.Json.Serialization.JsonPropertyName("message")]
+        [property: JsonPropertyName("message")]
         ParsedArticleDto? Message);
 }

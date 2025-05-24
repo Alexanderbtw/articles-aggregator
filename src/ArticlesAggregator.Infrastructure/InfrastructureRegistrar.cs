@@ -2,6 +2,8 @@ using ArticlesAggregator.Infrastructure.Abstractions;
 using ArticlesAggregator.Infrastructure.Abstractions.Repositories;
 using ArticlesAggregator.Infrastructure.Repositories;
 
+using Dapper;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 

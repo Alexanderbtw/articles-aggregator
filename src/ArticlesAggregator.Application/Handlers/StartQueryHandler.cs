@@ -19,7 +19,7 @@ internal sealed class StartQueryHandler : IRequestHandler<StartQuery, string>
         {
             sb.AppendLine();
             sb.AppendLine("\n🛠 Вы администратор.");
-            sb.AppendLine("— Админы могут использовать /link и /delete.");
+            sb.AppendLine("— Админы могут использовать /link и удалять|редактировать статьи.");
         }
 
         return Task.FromResult(sb.ToString());

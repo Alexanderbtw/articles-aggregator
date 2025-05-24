@@ -1,9 +1,10 @@
 using System.Text;
 
 using ArticlesAggregator.Application.Handlers;
-using ArticlesAggregator.Domain.Entities;
+using ArticlesAggregator.Domain.Models;
 using ArticlesAggregator.Worker.Options;
 using ArticlesAggregator.Worker.Routers.Abstractions;
+using ArticlesAggregator.Worker.Workers;
 
 using MediatR;
 
@@ -22,7 +23,8 @@ internal sealed class UpdateRouter(
     IMediator mediator,
     ILogger<UpdateRouter> logger,
     IOptionsSnapshot<BotOptions> options,
-    IMemoryCache cache)
+    IMemoryCache cache,
+    TelegraphApiClient telegraph)
     : IUpdateRouter
 {
     public async Task RouteAsync(Update update, CancellationToken ct)
@@ -84,18 +86,31 @@ internal sealed class UpdateRouter(
     private InlineKeyboardMarkup BuildEditMenu(Guid articleId) => new InlineKeyboardMarkup(
     [
         [
-            InlineKeyboardButton.WithCallbackData("✏️ Заголовок", $"edit:Title:{articleId}"),
-            InlineKeyboardButton.WithCallbackData("✏️ Описание", $"edit:Description:{articleId}")
+            InlineKeyboardButton.WithCallbackData("✏️ Заголовок", $"edit:{articleId}:Title"),
+            InlineKeyboardButton.WithCallbackData("✏️ Описание", $"edit:{articleId}:Description")
         ],
         [InlineKeyboardButton.WithCallbackData("🗑️ Удалить", $"del:{articleId}")]
     ]);
 
-    private string PrepareArticle(ArticleEntity article)
+    private const int TelegramLimit = 3800;
+
+    private static string FirstChunk(string text)
+    {
+        string first = text.Split('\n').First();
+        return first.Length > TelegramLimit ? first[..TelegramLimit] + "..." : first;
+    }
+
+    private string PrepareArticle(ArticleModel article, string? telegraphUrl = null)
     {
         var sb = new StringBuilder();
         sb.AppendLine($"📰 <b>{article.Title}</b>");
-        sb.AppendLine($"<i>{article.Content}</i>");
-        sb.AppendLine($"\n<code>{article.Url}</code>");
+        sb.AppendLine($"<i>{FirstChunk(article.Content)}</i>");
+        if (telegraphUrl is not null)
+        {
+            sb.AppendLine($"\n<a href=\"{telegraphUrl}\">📓 Читать дальше</a>");
+        }
+
+        sb.AppendLine($"\n<a href=\"{article.SourceUrl.OriginalString}\">🦷 Источник</a>");
 
         return sb.ToString();
     }
@@ -118,16 +133,7 @@ internal sealed class UpdateRouter(
 
         if (isAdmin && cache.TryGetValue(GetEditKey(chatId), out PendingEdit? pending) && pending != null)
         {
-            await mediator.Send(new EditArticleFieldCommand(pending.ArticleId, pending.Field, text), ct);
-            GetArticleQueryResponse resp = await mediator.Send(new GetArticleQuery(pending.ArticleId), ct);
-
-            await bot.SendMessage(
-                chatId,
-                PrepareArticle(resp.Article),
-                replyMarkup: BuildEditMenu(resp.Article.Id),
-                cancellationToken: ct);
-
-            cache.Remove(GetEditKey(chatId));
+            await HandleEditSubmit(pending, text, chatId, ct);
 
             return;
         }
@@ -137,6 +143,24 @@ internal sealed class UpdateRouter(
         string? arg = parts.Length > 1 ? parts[1] : null;
 
         await HandleCommandAsync(cmd, arg, chatId, user.Id, isAdmin, ct);
+    }
+
+    private async Task HandleEditSubmit(PendingEdit pendingEdit, string textValue, long chatId, CancellationToken ct)
+    {
+        await mediator.Send(new EditArticleFieldCommand(pendingEdit.ArticleId, pendingEdit.Field, textValue), ct);
+        GetArticleQueryResponse resp = await mediator.Send(new GetArticleQuery(pendingEdit.ArticleId), ct);
+
+        string? url = await PublishArticleContentIfNeeded(resp.Article, ct);
+        string preparedContent = PrepareArticle(resp.Article, url);
+
+        await bot.SendMessage(
+            chatId,
+            preparedContent,
+            replyMarkup: BuildEditMenu(resp.Article.Id),
+            parseMode: ParseMode.Html,
+            cancellationToken: ct);
+
+        cache.Remove(GetEditKey(chatId));
     }
 
     private async Task HandleCallbackAsync(CallbackQuery callback, CancellationToken ct)
@@ -164,7 +188,7 @@ internal sealed class UpdateRouter(
                 await HandleEditAsync(chatId, articleId, messageId, chunks[2], ct);
 
             break;
-            case "/show":
+            case "show":
                 await HandleShowAsync(chatId, articleId, isAdmin, ct);
 
             break;
@@ -217,9 +241,12 @@ internal sealed class UpdateRouter(
             return;
         }
 
-        string preview = PrepareArticle(creation.Article!);
-        InlineKeyboardMarkup kb = BuildEditMenu(creation.Article!.Id);
-        await bot.SendMessage(chatId, preview, replyMarkup: kb, cancellationToken: ct);
+        ArticleModel article = creation.Article!;
+        string? telegraphUrl = await PublishArticleContentIfNeeded(article, ct);
+
+        string preview = PrepareArticle(article, telegraphUrl);
+        InlineKeyboardMarkup kb = BuildEditMenu(article.Id);
+        await bot.SendMessage(chatId, preview, replyMarkup: kb, parseMode: ParseMode.Html, cancellationToken: ct);
     }
 
     private async Task HandleDeleteAsync(long chatId, Guid articleId, int messageId, CancellationToken ct)
@@ -235,8 +262,23 @@ internal sealed class UpdateRouter(
     {
         GetArticleQueryResponse resp = await mediator.Send(new GetArticleQuery(articleId), ct);
         InlineKeyboardMarkup? kb = isAdmin ? BuildEditMenu(resp.Article.Id) : null;
-        string preview = PrepareArticle(resp.Article);
-        await bot.SendMessage(chatId, preview, replyMarkup: kb, cancellationToken: ct);
+
+        string? telegraphUrl = await PublishArticleContentIfNeeded(resp.Article, ct);
+
+        string preview = PrepareArticle(resp.Article, telegraphUrl);
+        await bot.SendMessage(chatId, preview, replyMarkup: kb, parseMode: ParseMode.Html, cancellationToken: ct);
+    }
+
+    private async Task<string?> PublishArticleContentIfNeeded(ArticleModel article, CancellationToken ct)
+    {
+        string? telegraphUrl = null;
+
+        if (article.Content.Length > TelegramLimit)
+        {
+            telegraphUrl = await telegraph.PublishAsync(article.Title, article.Content, false, ct);
+        }
+
+        return telegraphUrl;
     }
 
     private async Task HandleSearchAsync(long chatId, string query, CancellationToken ct)
@@ -252,7 +294,7 @@ internal sealed class UpdateRouter(
 
         var kb = new List<InlineKeyboardButton[]>();
 
-        foreach (ArticleEntity a in results.Articles.Take(20)) // TODO: Pagination
+        foreach (ArticleModel a in results.Articles.Take(20)) // TODO: Pagination
         {
             string title = a.Title.Length > 50 ? a.Title[..47] + "…" : a.Title;
 

@@ -1,6 +1,6 @@
 using System.Net.Http.Json;
 
-using ArticlesAggregator.Domain.Entities;
+using ArticlesAggregator.Domain.Models;
 using ArticlesAggregator.ExternalServices.Parser;
 using ArticlesAggregator.ExternalServices.Parser.Contracts;
 
@@ -9,7 +9,7 @@ namespace ArticlesAggregator.ExternalServices.WikiApi;
 internal sealed class ExternalParserClient(
     ExternalParserHttpClient http) : IExternalParserClient
 {
-    public async Task<ArticleEntity> GetArticle(Uri link, CancellationToken ct)
+    public async Task<ArticleModel> GetArticle(Uri link, CancellationToken ct)
     {
         ParsedArticleDto? dto = await http.GetArticles(link, ct);
 
@@ -18,12 +18,12 @@ internal sealed class ExternalParserClient(
             throw new InvalidOperationException("Parser returned null");
         }
 
-        return new ArticleEntity
+        return new ArticleModel
         {
             Id = Guid.NewGuid(),
             Title = dto.Title,
             Content = dto.Data,
-            Url = link
+            SourceUrl = link
         };
     }
 }

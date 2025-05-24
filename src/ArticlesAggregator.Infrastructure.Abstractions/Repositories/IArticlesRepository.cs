@@ -1,4 +1,4 @@
-using ArticlesAggregator.Domain.Entities;
+using ArticlesAggregator.Infrastructure.Abstractions.Entities;
 
 namespace ArticlesAggregator.Infrastructure.Abstractions.Repositories;
 

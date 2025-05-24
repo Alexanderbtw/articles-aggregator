@@ -1,4 +1,5 @@
-using ArticlesAggregator.Domain.Entities;
+using ArticlesAggregator.Domain.Models;
+using ArticlesAggregator.Infrastructure.Abstractions.Entities;
 using ArticlesAggregator.Infrastructure.Abstractions.Repositories;
 
 using MediatR;

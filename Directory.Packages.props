@@ -13,6 +13,8 @@
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.5" />
     <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="9.5.0" />
     <PackageVersion Include="Microsoft.Extensions.Options" Version="9.0.5" />
+    <PackageVersion Include="Npgsql" Version="9.0.3" />
     <PackageVersion Include="Telegram.Bot" Version="22.5.1" />
+    <PackageVersion Include="Telegraph.Sharp" Version="2.4.4" />
   </ItemGroup>
 </Project>

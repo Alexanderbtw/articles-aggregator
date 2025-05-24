@@ -1,7 +1,7 @@
 using System.Data;
 
-using ArticlesAggregator.Domain.Entities;
 using ArticlesAggregator.Infrastructure.Abstractions;
+using ArticlesAggregator.Infrastructure.Abstractions.Entities;
 using ArticlesAggregator.Infrastructure.Abstractions.Repositories;
 
 using Dapper;
@@ -22,8 +22,8 @@ internal sealed class ArticleRepository(IDbConnectionFactory dbConnectionFactory
     public async Task<Guid> AddAsync(ArticleEntity entity, CancellationToken ct = default)
     {
         const string sql = @"
-            INSERT INTO Articles (Id, Title, Content)
-            VALUES (@Id, @Title, @Content);
+            INSERT INTO Articles (id, title, content, source_url)
+            VALUES (@Id, @Title, @Content, @SourceUrl);
         ";
 
         using IDbConnection conn = await dbConnectionFactory.OpenAsync(ct);
@@ -34,7 +34,8 @@ internal sealed class ArticleRepository(IDbConnectionFactory dbConnectionFactory
             {
                 entity.Id,
                 entity.Title,
-                entity.Content
+                entity.Content,
+                sourceurl = entity.SourceUrl
             });
 
         return entity.Id;
@@ -44,9 +45,10 @@ internal sealed class ArticleRepository(IDbConnectionFactory dbConnectionFactory
     {
         const string sql = @"
                 UPDATE Articles
-                   SET Title   = @Title,
-                       Content = @Content
-                 WHERE Id = @Id;
+                   SET title   = @Title,
+                       content = @Content,
+                       source_url = @SourceUrl
+                 WHERE id = @Id;
             ";
 
         using IDbConnection conn = await dbConnectionFactory.OpenAsync(ct);
@@ -57,6 +59,7 @@ internal sealed class ArticleRepository(IDbConnectionFactory dbConnectionFactory
             {
                 entity.Title,
                 entity.Content,
+                sourceurl = entity.SourceUrl,
                 entity.Id
             });
 
@@ -66,9 +69,9 @@ internal sealed class ArticleRepository(IDbConnectionFactory dbConnectionFactory
     public async Task<ArticleEntity?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         const string sql = @"
-                SELECT Id, Title, Content
+                SELECT id, title, content, source_url AS SourceUrl
                 FROM Articles
-                WHERE Id = @Id
+                WHERE id = @Id
             ";
 
         using IDbConnection conn = await dbConnectionFactory.OpenAsync(ct);
@@ -86,7 +89,7 @@ internal sealed class ArticleRepository(IDbConnectionFactory dbConnectionFactory
             .Select((_, i) => $"Title ILIKE @pattern{i}");
 
         var sql = $@"
-            SELECT Id, Title, Content
+            SELECT id, title, content, source_url AS SourceUrl
             FROM Articles
             WHERE {string.Join(" AND ", whereClauses)}
             ORDER BY Id DESC

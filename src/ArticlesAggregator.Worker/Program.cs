@@ -13,6 +13,7 @@ using Telegram.Bot;
 HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
 
 builder.Services.Configure<BotOptions>(builder.Configuration.GetSection("Bot"));
+builder.Services.Configure<TelegraphOptions>(builder.Configuration.GetSection("Telegraph"));
 
 builder.Services.AddSingleton<ITelegramBotClient>(sp =>
 {
@@ -21,15 +22,12 @@ builder.Services.AddSingleton<ITelegramBotClient>(sp =>
     return new TelegramBotClient(opt.Token);
 });
 
-Console.WriteLine(Directory.GetCurrentDirectory());
-Console.WriteLine(builder.Configuration.GetConnectionString("articles-aggregator-db"));
-Console.WriteLine(builder.Configuration.GetSection("Bot").Value);
-
 InfrastructureRegistrar.Congigure(builder.Services);
 ApplicationRegistrar.Configure(builder.Services);
 ExternalParserRegistrar.Configure(builder.Services, builder.Configuration);
 
 builder.Services.AddScoped<IUpdateRouter, UpdateRouter>();
+builder.Services.AddScoped<TelegraphApiClient>();
 builder.Services.AddHostedService<UpdateWorker>();
 builder.Services.AddMemoryCache();
 
