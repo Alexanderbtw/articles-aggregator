@@ -43,6 +43,5 @@ services:
     platform: linux/amd64
     ports:
       - "8080:8080"
-    command: app/webapi
 volumes:
   pgdata:
