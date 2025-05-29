@@ -13,22 +13,23 @@ public static class ExternalParserRegistrar
 {
     public static void Configure(IServiceCollection services, IConfiguration configuration)
     {
-        services.Configure<ExternalParserOptions>(
-            configuration.GetSection(ExternalParserOptions.SectionName));
+        services.Configure<ExternalParserOptions>(configuration.GetSection(ExternalParserOptions.SectionName));
 
         services
             .AddHttpClient<ExternalParserHttpClient>()
-            .AddResilienceHandler("ExternalParser", static builder =>
-            {
-                builder
-                    .AddRetry(new RetryStrategyOptions<HttpResponseMessage>
-                    {
-                        BackoffType   = DelayBackoffType.Exponential,
-                        Delay         = TimeSpan.FromSeconds(1),
-                        MaxRetryAttempts = 3
-                    })
-                    .AddTimeout(TimeSpan.FromSeconds(10));
-            });
+            .AddResilienceHandler(
+                "ExternalParser",
+                static builder =>
+                {
+                    builder
+                        .AddRetry(
+                            new RetryStrategyOptions<HttpResponseMessage>
+                            {
+                                BackoffType = DelayBackoffType.Exponential,
+                                Delay = TimeSpan.FromSeconds(1),
+                                MaxRetryAttempts = 3
+                            });
+                });
 
         services.AddScoped<IExternalParserClient, ExternalParserClient>();
     }

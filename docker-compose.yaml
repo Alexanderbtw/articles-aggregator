@@ -43,6 +43,6 @@ services:
     platform: linux/amd64
     ports:
       - "8080:8080"
-    command: go run cmd/webapi/main.go
+    command: app/webapi
 volumes:
   pgdata:
